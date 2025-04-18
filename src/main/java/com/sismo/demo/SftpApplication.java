@@ -6,111 +6,64 @@ import net.schmizz.sshj.transport.verification.PromiscuousVerifier;
 import net.schmizz.sshj.userauth.keyprovider.KeyProvider;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.Set;
-
-import static com.sismo.demo.utils.FileUtil.compressAndDeleteInitFile;
-import static java.time.LocalDateTime.now;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDate;
 
 public class SftpApplication {
-    private final static String SERVER = System.getenv("SFTP_SERVER");
-    private final static String USER = System.getenv("SFTP_USER");
-    private final static String PHRASE = System.getenv("SFTP_PHRASE");
-    private final static String PRIVATE_KEY = System.getenv("SFTP_PRIVATE_KEY");
-    private final static String LOCAL_USER_INDICATOR_DIRECTORY = System.getenv("SFTP_LOCAL_USER_INDICATOR_DIRECTORY");
-    private final static String LOCAL_MACRO_INDICATOR_DIRECTORY = System.getenv("SFTP_LOCAL_MACRO_INDICATOR_DIRECTORY");
-    private final static String LOCAL_PORTFOLIO_DIRECTORY = System.getenv("SFTP_LOCAL_PORTFOLIO_DIRECTORY");
-
-    private static final String SFTP_USER_INDICATOR_DIRECTORY = "/user_indicator";
-    private static final String SFTP_MACRO_INDICATOR_DIRECTORY = "/macro_indicator";
-    private static final String SFTP_PORTFOLIO_DIRECTORY = "/portfolio";
-    private static final Set<String> TO_ARCHIVE_FILES_IN_DIRECTORY = Set.of(SFTP_USER_INDICATOR_DIRECTORY);
-
     public static void main(String[] args) {
-        try (SSHClient ssh = new SSHClient()) {
-            sshClientAuth(ssh);
-            runFileUpload(ssh, LOCAL_USER_INDICATOR_DIRECTORY, SFTP_USER_INDICATOR_DIRECTORY);
-            runFileUpload(ssh, LOCAL_MACRO_INDICATOR_DIRECTORY, SFTP_MACRO_INDICATOR_DIRECTORY);
-            runFileUpload(ssh, LOCAL_PORTFOLIO_DIRECTORY, SFTP_PORTFOLIO_DIRECTORY);
-        } catch (Exception e) {
-            System.out.println("File upload error." + e.getMessage());
-        }
-    }
+        // You need to set environment variables before running this application (see README.md)
+        try (SSHClient sshClient = new SSHClient()) {
+            // Init SFTP parameters
+            String SERVER = System.getenv("SFTP_SERVER");
+            String USER = System.getenv("SFTP_USER");
+            String PHRASE = System.getenv("SFTP_PHRASE");
+            String PRIVATE_KEY = System.getenv("SFTP_PRIVATE_KEY");
+            String LOCAL_PORTFOLIO_DIRECTORY = System.getenv("SFTP_LOCAL_PORTFOLIO_DIRECTORY");
+            String SFTP_PORTFOLIO_DIRECTORY = "/portfolio";
 
-    private static void runFileUpload(SSHClient ssh, String localDirectory, String sftpDirectory) {
-        if (isDirectorySetInEnvVariables(localDirectory)) {
-            log("Start copying user indicator files to SFTP server", localDirectory);
-            copyFiles(ssh, localDirectory, sftpDirectory);
-            log("Finish copying user indicator files to SFTP server", localDirectory);
-        }
-    }
+            // Provide with the external id for the portfolio in Sismo
+            String externalId = "123AB";
 
-    private static void sshClientAuth(SSHClient ssh) throws IOException {
-        // Skip host key verification for simplicity
-        ssh.addHostKeyVerifier(new PromiscuousVerifier());
-        ssh.connect(SERVER);
+            // Generate the file name
+            String operationType = "M"; // M for merge
+            long epochMillis = System.currentTimeMillis();
+            String fileName = externalId + "-" + epochMillis + "-" + operationType + ".csv";
 
-        File key = new File(PRIVATE_KEY);
-        KeyProvider keys;
-        if (PHRASE != null && !PHRASE.isEmpty()) {
-            keys = ssh.loadKeys(key.getPath(), PHRASE);
-        } else {
-            keys = ssh.loadKeys(key.getPath());
-        }
-        ssh.authPublickey(USER, keys);
-    }
+            // Create the CSV content
+            String currentDate = LocalDate.now().toString().replace("-", "");
+            String content = currentDate + "," + "US0231351067" + "," + "Amazon.com Inc." + "," + 50.0f + "\n" +
+                             currentDate + "," + "US0378331005" + "," + "Apple Inc." + "," + 25.0f + "\n" +
+                             currentDate + "," + "US5949181045" + "," + "Microsoft Corp." + "," + 25.0f;
 
-    private static void copyFiles(SSHClient ssh, String localDirectory, String sftpDirectory) {
-        // Initialize folder with files
-        File folder = new File(localDirectory);
-        if (!folder.exists() || !folder.isDirectory()) {
-            log("Invalid user indicator data location: " + localDirectory, localDirectory);
-            return;
-        }
+            // Save the file locally
+            Path filePath = Paths.get(LOCAL_PORTFOLIO_DIRECTORY, fileName);
+            Files.write(filePath, content.getBytes());
 
-        // Get all files in the directory
-        File[] files = folder.listFiles();
-        if (files == null || files.length == 0) {
-            log("No files found in user indicator data location: " + localDirectory, localDirectory);
-            return;
-        }
+            // Connect to the SFTP server
+            // Skip host key verification for simplicity
+            sshClient.addHostKeyVerifier(new PromiscuousVerifier());
+            sshClient.connect(SERVER);
 
-        // Iterate through each file and copy to SFTP
-        for (File file : files) {
-            String fileName = file.getName();
-            if (file.isFile() && (fileName.endsWith(".zip") || fileName.endsWith(".csv"))) {
-                if (TO_ARCHIVE_FILES_IN_DIRECTORY.contains(sftpDirectory) && !fileName.endsWith("-D.csv") && !fileName.endsWith(".zip")) {
-                    String filePath = file.getPath();
-                    compressAndDeleteInitFile(filePath, filePath.replace(".csv", ".zip"));
-                }
-                copyFilesToSFTP(ssh, fileName, localDirectory, sftpDirectory);
-                log("File " + fileName + " copied successfully.", localDirectory);
+            // Get the keys
+            File key = new File(PRIVATE_KEY);
+            KeyProvider keys;
+
+            // Load private and public key with passphrase if provided
+            if (PHRASE != null && !PHRASE.isEmpty()) {
+                keys = sshClient.loadKeys(key.getPath(), PHRASE);
+            } else {
+                keys = sshClient.loadKeys(key.getPath());
             }
-        }
-    }
+            sshClient.authPublickey(USER, keys);
 
-    private static void copyFilesToSFTP(SSHClient ssh, String fileName, String localDirectory, String sftpDirectory) {
-        try (SFTPClient sftp = ssh.newSFTPClient()) {
-            sftp.put(localDirectory + "/" + fileName, sftpDirectory + "/" + fileName); // Upload the file
-            System.out.println("File uploaded successfully.");
+            // Upload the file to SFTP server
+            SFTPClient sftp = sshClient.newSFTPClient();
+            sftp.put(LOCAL_PORTFOLIO_DIRECTORY + "/" + fileName, SFTP_PORTFOLIO_DIRECTORY + "/" + fileName); // Upload the file
+            System.out.println("File "+ fileName + " uploaded successfully.");
         } catch (Exception e) {
             System.out.println("File upload error." + e.getMessage());
         }
-    }
-
-    private static void log(String message, String localDirectory) {
-        // Save logs in the local directory to log.txt file
-        try (FileWriter writer = new FileWriter(localDirectory + "/log.txt", true)) {
-            String timestampedMessage = "[" + now() + "] " + message;
-            writer.write(timestampedMessage + "\n");
-            System.out.println(timestampedMessage);
-        } catch (IOException e) {
-            System.err.println("Error writing to log file: " + e.getMessage());
-        }
-    }
-
-    private static boolean isDirectorySetInEnvVariables(String directory) {
-        return directory != null && !directory.isEmpty();
     }
 }

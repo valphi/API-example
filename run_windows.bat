@@ -6,5 +6,4 @@ set SFTP_PRIVATE_KEY=%USERPROFILE%\.ssh\id_rsa
 set SFTP_LOCAL_USER_INDICATOR_DIRECTORY=%USERPROFILE%\sftp-sismo\user_indicator
 set SFTP_LOCAL_MACRO_INDICATOR_DIRECTORY=%USERPROFILE%\sftp-sismo\macro_indicator
 set SFTP_LOCAL_PORTFOLIO_DIRECTORY=%USERPROFILE%\sftp-sismo\portfolio
-
-java -jar build\libs\SftpApplication.jar
+java -jar SftpApplication.jar

@@ -6,5 +6,4 @@ export SFTP_PRIVATE_KEY=/home/evgenijderkac/.ssh/id_rsa
 export SFTP_LOCAL_USER_INDICATOR_DIRECTORY=~/sftp-sismo/user_indicator
 export SFTP_LOCAL_MACRO_INDICATOR_DIRECTORY=~/sftp-sismo/macro_indicator
 export SFTP_LOCAL_PORTFOLIO_DIRECTORY=~/sftp-sismo/portfolio
-
 java -jar SftpApplication.jar
