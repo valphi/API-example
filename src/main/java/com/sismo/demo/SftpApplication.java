@@ -14,6 +14,7 @@ import java.time.LocalDate;
 public class SftpApplication {
     public static void main(String[] args) {
         // You need to set environment variables before running this application (see README.md)
+        // Open a connection to the SFTP server in try-with-resources block to prevent resource leaks
         try (SSHClient sshClient = new SSHClient()) {
             // Init SFTP parameters
             String SERVER = System.getenv("SFTP_SERVER");
@@ -33,9 +34,9 @@ public class SftpApplication {
 
             // Create the CSV content
             String currentDate = LocalDate.now().toString().replace("-", "");
-            String content = currentDate + "," + "US0231351067" + "," + "Amazon.com Inc." + "," + 50.0f + "\n" +
-                             currentDate + "," + "US0378331005" + "," + "Apple Inc." + "," + 25.0f + "\n" +
-                             currentDate + "," + "US5949181045" + "," + "Microsoft Corp." + "," + 25.0f;
+            String content = currentDate + "," + "US0231351067" + "," + "Amazon.com Inc." + "," + 0.5f + "\n" +
+                             currentDate + "," + "US0378331005" + "," + "Apple Inc." + "," + 0.25f + "\n" +
+                             currentDate + "," + "US5949181045" + "," + "Microsoft Corp." + "," + 0.25f;
 
             // Save the file locally
             Path filePath = Paths.get(LOCAL_PORTFOLIO_DIRECTORY, fileName);
